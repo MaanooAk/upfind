@@ -1,0 +1,68 @@
+#!/bin/bash
+
+[ -z "$1" ] || cd "$1"
+
+# exit if not a git repository
+git status >/dev/null || exit 1
+
+# exit if upstream already defined
+if git remote get-url upstream >/dev/null 2>&1; then
+	echo "upstream already defined"
+	exit 1
+fi
+
+# exit if origin not defined
+if ! git remote get-url origin >/dev/null 2>&1; then
+	echo "origin is not defined"
+	exit 1
+fi
+
+# find the origin url
+origin="$(git remote get-url origin)"
+echo "origin: $origin"
+
+
+github() {
+
+	if [[ "$origin" == "git"* ]]; then
+		url="https://github.com/$(echo "${origin%.git}" | cut -d ':' -f 2)"
+	else
+		url="$(echo "${origin%.git}")"
+	fi
+	
+	subpath="$(curl -s "$url" | grep -F 'forked from' | head -n1 | grep -o 'href="[^\"]*' | sed 's/^.*"//')"
+	
+	# check if the subpath was found
+	[ -n "$subpath" ] || exit 1
+	
+	echo "https://github.com$subpath.git"
+}
+
+
+# find host
+if [[ "$origin" == *"github.com"* ]]; then
+	echo "host: https://github.com"
+	upstream="$(github "$origin")"
+	
+elif [[ "$origin" == *"gitlab.com"* ]]; then
+	echo "gitlab.com is not supported yet" && exit 3
+	
+elif [[ "$origin" == *"bitbucket.org"* ]]; then
+	echo "bitbucket.org is not supported yet" && exit 3
+	
+else
+	echo "unknonw host: $origin" && exit 2
+fi
+
+# check if the upstream was found
+if [ -z "$upstream" ]; then
+	echo "the upstream cannot be found"
+	exit 1
+fi
+
+# set the upstream
+echo "upstream: $upstream"
+git remote -v add upstream "$upstream"
+
+
+
